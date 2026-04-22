@@ -39,7 +39,7 @@ const FreelancerDashboard = () => {
           <h2 className="text-lg font-semibold text-brand-text">Browse Projects</h2>
           <Link
             to="/freelancer/browse-jobs"
-            className="inline-flex items-center justify-center rounded-lg border border-brand-border bg-brand-primary px-5 py-3 text-sm font-semibold text-brand-text"
+            className="inline-flex items-center justify-center rounded-lg border border-brand-border bg-brand-primary px-5 py-3 text-sm font-semibold text-white"
           >
             Browse Projects
           </Link>

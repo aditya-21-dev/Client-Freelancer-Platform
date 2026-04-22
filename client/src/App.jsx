@@ -29,6 +29,7 @@ import Contact from './pages/landing/Contact'
 import ProtectedRoute from './routes/ProtectedRoute'
 import PublicRoute from './routes/PublicRoute'
 import { AuthContext } from './context/AuthContext'
+import TestChat from "./TestChat";
 
 const DashboardLayout = () => {
   return (
@@ -36,8 +37,10 @@ const DashboardLayout = () => {
       <Navbar />
       <div className="flex min-h-[calc(100vh-4rem)] w-full">
         <Sidebar />
-        <main className="min-w-0 flex-1 overflow-x-hidden p-4 sm:p-5 md:p-6">
-          <Outlet />
+        <main className="min-w-0 flex-1 overflow-x-hidden p-4 sm:p-6 md:p-8">
+          <div className="mx-auto w-full max-w-7xl">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
@@ -139,8 +142,10 @@ function App() {
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/test-chat" element={<TestChat />} />
     </Routes>
   )
 }
 
 export default App
+

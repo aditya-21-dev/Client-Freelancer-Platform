@@ -31,7 +31,7 @@ const buildAuthResponse = (user) => {
   return {
     token,
     user: {
-      id: user._id,
+      _id: user._id,
       name: user.name,
       email: user.email,
       role: safeRole,
@@ -187,5 +187,25 @@ export const googleAuth = async (req, res) => {
   } catch (error) {
     console.error(error)
     return res.status(401).json({ message: 'Google authentication failed' })
+  }
+}
+
+export const getMe = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Unauthorized' })
+    }
+
+    return res.status(200).json({
+      user: {
+        _id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        role: req.user.role || DEFAULT_ROLE,
+      },
+    })
+  } catch (error) {
+    console.error('[auth.me] error', error)
+    return res.status(500).json({ message: error.message || 'Server error' })
   }
 }

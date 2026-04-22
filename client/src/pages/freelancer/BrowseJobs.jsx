@@ -1,16 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import JobCard from '../../components/JobCard'
+import Card from '../../components/ui/Card'
 import { fetchJobs } from '../../services/jobService'
-
-const formatDeadline = (dateValue) => {
-  const parsed = new Date(dateValue)
-  if (Number.isNaN(parsed.getTime())) return 'Invalid deadline'
-  return parsed.toLocaleDateString()
-}
-
-const shortText = (value, max = 120) => {
-  if (!value) return ''
-  return value.length > max ? `${value.slice(0, max)}...` : value
-}
 
 const BrowseJobs = () => {
   const [jobs, setJobs] = useState([])
@@ -47,52 +38,57 @@ const BrowseJobs = () => {
   }, [jobs, search])
 
   return (
-    <section className="mx-auto w-full max-w-7xl space-y-6">
-      <div className="rounded-xl border border-brand-border bg-brand-background p-5">
-        <h1 className="text-2xl font-semibold text-brand-text">Browse Jobs</h1>
-        <p className="mt-1 text-sm text-brand-subtext">Latest jobs posted by clients.</p>
-      </div>
+    <section className="mx-auto w-full max-w-7xl space-y-8 p-2 sm:p-4">
+      <Card className="p-6">
+        <p className="text-sm font-medium text-brand-subtext">Freelancer Workspace</p>
+        <h1 className="mt-1 text-2xl font-semibold text-brand-text">Browse Jobs</h1>
+        <p className="mt-2 text-sm text-brand-subtext">Find projects that match your skills and submit proposals quickly.</p>
+      </Card>
 
-      <div className="rounded-xl border border-brand-border bg-brand-background p-4">
+      <Card className="p-4">
+        <label htmlFor="job-search" className="mb-2 block text-sm font-medium text-brand-text">
+          Search Jobs
+        </label>
         <input
+          id="job-search"
           type="text"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search by title or description"
-          className="w-full rounded-lg border border-brand-border bg-brand-background p-3 text-sm text-brand-text"
+          className="w-full rounded-2xl border border-brand-border bg-brand-background p-3 text-sm text-brand-text shadow-md transition focus:outline-none focus:shadow-lg"
         />
-      </div>
+      </Card>
 
       {loading ? (
-        <div className="rounded-xl border border-brand-border bg-brand-messageReceived p-4">
+        <Card className="bg-brand-messageReceived p-5">
           <p className="text-sm text-brand-subtext">Loading jobs...</p>
-        </div>
+        </Card>
       ) : null}
 
       {!loading && error ? (
-        <div className="rounded-xl border border-brand-border bg-brand-messageReceived p-4">
+        <Card className="bg-brand-messageReceived p-5">
           <p className="text-sm text-brand-text">{error}</p>
-        </div>
+        </Card>
       ) : null}
 
       {!loading && !error && filteredJobs.length === 0 ? (
-        <div className="rounded-xl border border-brand-border bg-brand-messageReceived p-4">
-          <p className="text-sm text-brand-subtext">No jobs found.</p>
-        </div>
+        <Card className="bg-brand-messageReceived p-5">
+          <p className="text-sm text-brand-subtext">No jobs found for your search.</p>
+        </Card>
       ) : null}
 
       {!loading && !error && filteredJobs.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredJobs.map((job) => (
-            <article key={job._id} className="rounded-xl border border-brand-border bg-brand-background p-4">
-              <h2 className="text-lg font-semibold text-brand-text">{job.title}</h2>
-              <p className="mt-2 text-sm text-brand-subtext">{shortText(job.description)}</p>
-              <div className="mt-4 space-y-1 rounded-lg border border-brand-border bg-brand-messageSent p-3">
-                <p className="text-sm text-brand-text">Budget: {job.budget}</p>
-                <p className="text-sm text-brand-subtext">Deadline: {formatDeadline(job.deadline)}</p>
-              </div>
-            </article>
-          ))}
+        <div>
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <h2 className="text-lg font-semibold text-brand-text">Open Opportunities</h2>
+            <p className="text-sm text-brand-subtext">{filteredJobs.length} jobs</p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            {filteredJobs.map((job) => (
+              <JobCard key={job._id || job.id} job={job} />
+            ))}
+          </div>
         </div>
       ) : null}
     </section>

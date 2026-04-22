@@ -1,5 +1,6 @@
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getCurrentUser } from '../services/authService'
 
 export const AuthContext = createContext()
 
@@ -10,10 +11,15 @@ export const AuthProvider = ({ children }) => {
   const [isInitializing, setIsInitializing] = useState(true)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
-    const storedUser = localStorage.getItem('user')
+    const initializeAuth = async () => {
+      const storedToken = localStorage.getItem('token')
+      const storedUser = localStorage.getItem('user')
 
-    if (storedToken) {
+      if (!storedToken) {
+        setIsInitializing(false)
+        return
+      }
+
       setToken(storedToken)
 
       if (storedUser) {
@@ -24,9 +30,26 @@ export const AuthProvider = ({ children }) => {
           setUser(null)
         }
       }
+
+      try {
+        const meResponse = await getCurrentUser()
+        const meUser = meResponse?.user ?? null
+
+        if (meUser) {
+          setUser(meUser)
+          localStorage.setItem('user', JSON.stringify(meUser))
+        }
+      } catch {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        setToken(null)
+        setUser(null)
+      } finally {
+        setIsInitializing(false)
+      }
     }
 
-    setIsInitializing(false)
+    initializeAuth()
   }, [])
 
   const logout = useCallback(

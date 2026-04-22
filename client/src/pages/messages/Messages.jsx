@@ -1,188 +1,116 @@
-import { useMemo, useState } from 'react'
-import ChatWindow from '../../components/messages/ChatWindow'
-import ConversationList from '../../components/messages/ConversationList'
-
-const CURRENT_USER_ID = 'user-0'
-
-const INITIAL_CONVERSATIONS = [
-  {
-    id: 'conv-1',
-    name: 'Sarah Williams',
-    status: 'online',
-    time: '10:42 AM',
-    lastMessage: 'Please share the first wireframe tonight.',
-    messages: [
-      {
-        id: 'msg-1',
-        senderId: 'user-1',
-        text: 'Hi, I reviewed your proposal and it looks strong.',
-        timestamp: '9:46 AM',
-      },
-      {
-        id: 'msg-2',
-        senderId: CURRENT_USER_ID,
-        text: 'Thanks Sarah. I can start with dashboard wireframes today.',
-        timestamp: '9:49 AM',
-      },
-      {
-        id: 'msg-3',
-        senderId: 'user-1',
-        text: 'Perfect. Please share the first wireframe tonight.',
-        timestamp: '10:42 AM',
-      },
-    ],
-  },
-  {
-    id: 'conv-2',
-    name: 'Michael Chen',
-    status: 'online',
-    time: 'Yesterday',
-    lastMessage: 'Looks good. Let us lock the milestone.',
-    messages: [
-      {
-        id: 'msg-4',
-        senderId: CURRENT_USER_ID,
-        text: 'I pushed the landing page polish and mobile tweaks.',
-        timestamp: '7:02 PM',
-      },
-      {
-        id: 'msg-5',
-        senderId: 'user-2',
-        text: 'Looks good. Let us lock the milestone.',
-        timestamp: '7:12 PM',
-      },
-    ],
-  },
-  {
-    id: 'conv-3',
-    name: 'Olivia Martinez',
-    status: 'offline',
-    time: 'Mon',
-    lastMessage: 'Can we discuss final QA checklist?',
-    messages: [
-      {
-        id: 'msg-6',
-        senderId: 'user-3',
-        text: 'Can we discuss final QA checklist before deployment?',
-        timestamp: '4:35 PM',
-      },
-      {
-        id: 'msg-7',
-        senderId: CURRENT_USER_ID,
-        text: 'Yes, I am available after 6 PM and can walk through each point.',
-        timestamp: '4:39 PM',
-      },
-    ],
-  },
-  {
-    id: 'conv-4',
-    name: 'David Anderson',
-    status: 'online',
-    time: 'Sun',
-    lastMessage: 'Payment released for phase one. Great work.',
-    messages: [
-      {
-        id: 'msg-8',
-        senderId: 'user-4',
-        text: 'Payment released for phase one. Great work.',
-        timestamp: '11:08 AM',
-      },
-      {
-        id: 'msg-9',
-        senderId: CURRENT_USER_ID,
-        text: 'Thank you. I will begin planning phase two now.',
-        timestamp: '11:12 AM',
-      },
-    ],
-  },
-]
-
-const getCurrentTimeLabel = () => {
-  return new Date().toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  })
-}
+import { useContext, useEffect, useMemo, useState } from 'react'
+import Chat from './Chat'
+import { AuthContext } from '../../context/AuthContext'
+import { getJson } from '../../utils/api'
 
 const Messages = () => {
-  const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS)
-  const [activeConversationId, setActiveConversationId] = useState(
-    INITIAL_CONVERSATIONS[0]?.id ?? null,
-  )
-  const [messageInput, setMessageInput] = useState('')
-  const [showMobileChat, setShowMobileChat] = useState(false)
+  const { user, isInitializing } = useContext(AuthContext)
+  const currentUserId = user?.id || user?._id || ''
 
-  const activeConversation = useMemo(() => {
-    return conversations.find((conversation) => conversation.id === activeConversationId) ?? null
-  }, [conversations, activeConversationId])
+  const [users, setUsers] = useState([])
+  const [receiverId, setReceiverId] = useState('')
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true)
+  const [usersError, setUsersError] = useState('')
 
-  const activeMessages = activeConversation?.messages ?? []
+  useEffect(() => {
+    if (!currentUserId) return
 
-  const handleSelectConversation = (conversationId) => {
-    setActiveConversationId(conversationId)
-    setShowMobileChat(true)
-  }
+    let isActive = true
 
-  const handleBackToList = () => {
-    setShowMobileChat(false)
-  }
+    const fetchUsers = async () => {
+      setIsLoadingUsers(true)
+      setUsersError('')
 
-  const handleSendMessage = () => {
-    const trimmedMessage = messageInput.trim()
-    if (!trimmedMessage || !activeConversation) return
+      try {
+        const fetchedUsers = await getJson('/api/users')
+        if (!isActive) return
 
-    const newMessage = {
-      id: `msg-${Date.now()}`,
-      senderId: CURRENT_USER_ID,
-      text: trimmedMessage,
-      timestamp: getCurrentTimeLabel(),
+        const safeUsers = Array.isArray(fetchedUsers) ? fetchedUsers : []
+        setUsers(safeUsers)
+
+        if (safeUsers.length > 0) {
+          setReceiverId((previous) => {
+            if (previous && safeUsers.some((item) => item._id === previous)) {
+              return previous
+            }
+            return safeUsers[0]._id
+          })
+        } else {
+          setReceiverId('')
+        }
+      } catch (error) {
+        if (!isActive) return
+        setUsersError(error?.message || 'Failed to load users')
+      } finally {
+        if (isActive) {
+          setIsLoadingUsers(false)
+        }
+      }
     }
 
-    setConversations((previousConversations) =>
-      previousConversations.map((conversation) => {
-        if (conversation.id !== activeConversation.id) return conversation
+    fetchUsers()
 
-        return {
-          ...conversation,
-          time: newMessage.timestamp,
-          lastMessage: newMessage.text,
-          messages: [...conversation.messages, newMessage],
-        }
-      }),
+    return () => {
+      isActive = false
+    }
+  }, [currentUserId])
+
+  const conversationId = useMemo(() => {
+    if (!currentUserId || !receiverId) return ''
+    return [currentUserId, receiverId].sort().join('*')
+  }, [currentUserId, receiverId])
+
+  if (isInitializing || !user) {
+    return (
+      <div className="flex h-[calc(100vh-10rem)] items-center justify-center rounded-xl border border-brand-border bg-brand-background text-brand-text">
+        Loading user session...
+      </div>
     )
-
-    setMessageInput('')
   }
 
   return (
-    <section className="h-full min-h-[calc(100vh-8rem)] w-full overflow-hidden rounded-xl border border-gray-200 bg-white text-gray-900 shadow-md">
-      <div className="grid h-full grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-[340px_minmax(0,1fr)]">
-        <aside
-          className={`min-w-0 border-r border-gray-200 bg-white ${
-            showMobileChat ? 'hidden md:block' : 'block'
-          }`}
-        >
-          <ConversationList
-            conversations={conversations}
-            activeConversationId={activeConversationId}
-            onSelectConversation={handleSelectConversation}
-          />
-        </aside>
+    <section className="grid h-[calc(100vh-10rem)] grid-cols-1 overflow-hidden rounded-xl border border-brand-border bg-brand-background text-brand-text md:grid-cols-[280px_minmax(0,1fr)]">
+      <aside className="border-b border-brand-border p-4 md:border-b-0 md:border-r">
+        <h2 className="mb-4 text-lg font-semibold">Users</h2>
 
-        <main className={`${showMobileChat ? 'block' : 'hidden md:block'} min-w-0 h-full bg-white`}>
-          <ChatWindow
-            conversation={activeConversation}
-            messages={activeMessages}
-            currentUserId={CURRENT_USER_ID}
-            messageInput={messageInput}
-            onInputChange={setMessageInput}
-            onSendMessage={handleSendMessage}
-            isMobile={showMobileChat}
-            onBack={handleBackToList}
-          />
-        </main>
-      </div>
+        {isLoadingUsers ? <p className="text-sm text-brand-subtext">Loading users...</p> : null}
+
+        {!isLoadingUsers && usersError ? (
+          <p className="text-sm text-red-600">{usersError}</p>
+        ) : null}
+
+        {!isLoadingUsers && !usersError && users.length === 0 ? (
+          <p className="text-sm text-brand-subtext">No users available to chat.</p>
+        ) : null}
+
+        <div className="space-y-2">
+          {users.map((listUser) => (
+            <button
+              key={listUser._id}
+              type="button"
+              onClick={() => setReceiverId(listUser._id)}
+              className={`w-full rounded-lg border border-brand-border px-3 py-2 text-left transition ${
+                receiverId === listUser._id
+                  ? 'bg-brand-primary text-white'
+                  : 'bg-brand-background hover:bg-slate-100'
+              }`}
+            >
+              <p className="truncate text-sm font-semibold">{listUser.name}</p>
+              <p className="truncate text-xs opacity-80">{listUser.email}</p>
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      <main className="min-h-0 min-w-0 p-4">
+        {receiverId && conversationId ? (
+          <Chat conversationId={conversationId} receiverId={receiverId} />
+        ) : (
+          <div className="flex h-full items-center justify-center rounded-xl border border-brand-border bg-brand-background p-6 text-sm text-brand-subtext">
+            Select a user to start chatting.
+          </div>
+        )}
+      </main>
     </section>
   )
 }

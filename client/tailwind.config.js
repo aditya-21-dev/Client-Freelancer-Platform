@@ -8,20 +8,20 @@ export default {
     extend: {
       colors: {
         brand: {
-          primary: '#1D4ED8',
-          secondary: '#2563EB',
-          background: '#F8FAFC',
+          primary: '#1E40AF',
+          secondary: '#0F766E',
+          background: '#FFFFFF',
           sidebar: '#FFFFFF',
-          active: '#DBEAFE',
-          border: '#E2E8F0',
+          active: '#E0E7FF',
+          border: '#D6DCE8',
 
           // text
-          text: '#0F172A',
+          text: '#0B1220',
           subtext: '#475569',
 
           // messages
-          messageSent: '#1E3A8A',
-          messageReceived: '#F1F5F9',
+          messageSent: '#EEF2FF',
+          messageReceived: '#F8FAFC',
         },
       },
       fontFamily: {

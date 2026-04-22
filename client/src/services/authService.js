@@ -1,4 +1,4 @@
-import { sendJson } from '../utils/api'
+import { getJson, sendJson } from '../utils/api'
 
 export const registerWithEmail = async ({ name, email, password, role }) => {
   return sendJson('/api/auth/register', {
@@ -20,4 +20,8 @@ export const loginWithGoogle = async (googleCredential) => {
     method: 'POST',
     body: { credential: googleCredential },
   })
+}
+
+export const getCurrentUser = async () => {
+  return getJson('/api/auth/me')
 }
