@@ -62,52 +62,58 @@ const Messages = () => {
 
   if (isInitializing || !user) {
     return (
-      <div className="flex h-[calc(100vh-10rem)] items-center justify-center rounded-xl border border-brand-border bg-brand-background text-brand-text">
+      <div className="flex h-[calc(100vh-10rem)] items-center justify-center rounded-2xl border border-brand-border bg-brand-background text-brand-text">
         Loading user session...
       </div>
     )
   }
 
   return (
-    <section className="grid h-[calc(100vh-10rem)] grid-cols-1 overflow-hidden rounded-xl border border-brand-border bg-brand-background text-brand-text md:grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="border-b border-brand-border p-4 md:border-b-0 md:border-r">
-        <h2 className="mb-4 text-lg font-semibold">Users</h2>
+    <section className="flex h-[calc(100vh-10rem)] overflow-hidden rounded-2xl border border-brand-border bg-brand-background text-brand-text">
+      <aside className="flex min-h-0 w-[320px] flex-shrink-0 flex-col border-r border-brand-border bg-brand-background px-4 py-5">
+        <h2 className="mb-4 text-lg font-semibold text-brand-text">Users</h2>
 
         {isLoadingUsers ? <p className="text-sm text-brand-subtext">Loading users...</p> : null}
 
         {!isLoadingUsers && usersError ? (
-          <p className="text-sm text-red-600">{usersError}</p>
+          <p className="text-sm text-brand-subtext">{usersError}</p>
         ) : null}
 
         {!isLoadingUsers && !usersError && users.length === 0 ? (
           <p className="text-sm text-brand-subtext">No users available to chat.</p>
         ) : null}
 
-        <div className="space-y-2">
-          {users.map((listUser) => (
-            <button
-              key={listUser._id}
-              type="button"
-              onClick={() => setReceiverId(listUser._id)}
-              className={`w-full rounded-lg border border-brand-border px-3 py-2 text-left transition ${
-                receiverId === listUser._id
-                  ? 'bg-brand-primary text-white'
-                  : 'bg-brand-background hover:bg-slate-100'
-              }`}
-            >
-              <p className="truncate text-sm font-semibold">{listUser.name}</p>
-              <p className="truncate text-xs opacity-80">{listUser.email}</p>
-            </button>
-          ))}
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+          {users.map((listUser) => {
+            const isActive = receiverId === listUser._id
+
+            return (
+              <button
+                key={listUser._id}
+                type="button"
+                onClick={() => setReceiverId(listUser._id)}
+                className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                  isActive
+                    ? 'border-brand-border bg-brand-primary text-white'
+                    : 'border-brand-border bg-brand-background text-brand-text hover:bg-brand-messageReceived'
+                }`}
+              >
+                <p className="truncate text-sm font-semibold">{listUser.name}</p>
+                <p className={`truncate text-xs ${isActive ? 'text-white' : 'text-brand-subtext'}`}>
+                  {listUser.email}
+                </p>
+              </button>
+            )
+          })}
         </div>
       </aside>
 
-      <main className="min-h-0 min-w-0 p-4">
+      <main className="flex-1 min-w-0 bg-brand-background p-4">
         {receiverId && conversationId ? (
           <Chat conversationId={conversationId} receiverId={receiverId} />
         ) : (
-          <div className="flex h-full items-center justify-center rounded-xl border border-brand-border bg-brand-background p-6 text-sm text-brand-subtext">
-            Select a user to start chatting.
+          <div className="flex h-full items-center justify-center rounded-2xl border border-brand-border bg-brand-background px-6 text-sm text-brand-subtext">
+            Start conversation
           </div>
         )}
       </main>

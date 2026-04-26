@@ -1,120 +1,132 @@
-import { useContext, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { AuthContext } from '../../context/AuthContext'
-import Loader from '../../components/Loader'
-import ProposalList from '../../components/proposals/ProposalList'
+import { fetchClientProposals, updateProposalStatus } from '../../services/proposalService'
 
 const ProjectProposals = () => {
-  const { user } = useContext(AuthContext)
   const { projectId } = useParams()
 
-  const [project, setProject] = useState(null)
   const [proposals, setProposals] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState('')
+  const [updatingId, setUpdatingId] = useState('')
 
   useEffect(() => {
-    if (!user || !projectId) return
+    let active = true
 
-    try {
-      // 🔥 get project from localStorage
-      const allProjects = JSON.parse(localStorage.getItem('projects')) || []
-      const foundProject = allProjects.find((p) => p._id === projectId)
+    const loadProposals = async () => {
+      try {
+        setLoading(true)
+        setError('')
 
-      setProject(foundProject)
+        const data = await fetchClientProposals()
+        if (!active) return
 
-      // 🔥 get proposals from localStorage
-      const allProposals = JSON.parse(localStorage.getItem('proposals')) || []
-
-      const filtered = allProposals.filter(
-        (p) => p.projectId === projectId
-      )
-
-      setProposals(filtered)
-
-    } catch (err) {
-      setError('Failed to load proposals')
-    } finally {
-      setLoading(false)
+        const safe = Array.isArray(data) ? data : []
+        setProposals(safe.filter((proposal) => proposal.job?._id === projectId))
+      } catch (err) {
+        if (!active) return
+        setError(err?.message || 'Failed to load proposals')
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
     }
-  }, [user, projectId])
 
-  const getProjectById = () => project
+    loadProposals()
 
-  const getFreelancerById = () => ({
-    name: 'Freelancer', // later replace with real user data
-  })
+    return () => {
+      active = false
+    }
+  }, [projectId])
 
-  const updateStatus = (proposalId, status) => {
-    const all = JSON.parse(localStorage.getItem('proposals')) || []
+  const handleStatusUpdate = async (proposalId, status) => {
+    try {
+      setUpdatingId(proposalId)
+      setError('')
 
-    const updated = all.map((p) =>
-      p.id === proposalId ? { ...p, status } : p
-    )
-
-    localStorage.setItem('proposals', JSON.stringify(updated))
-
-    setProposals(updated.filter((p) => p.projectId === projectId))
-  }
-
-  const handleShortlist = (proposal) =>
-    updateStatus(proposal.id, 'shortlisted')
-
-  const handleReject = (proposal) =>
-    updateStatus(proposal.id, 'rejected')
-
-  const handleAccept = (proposal) => {
-    updateStatus(proposal.id, 'accepted')
-
-    // 🔥 also update project status
-    const allProjects = JSON.parse(localStorage.getItem('projects')) || []
-
-    const updatedProjects = allProjects.map((p) =>
-      p._id === projectId ? { ...p, status: 'in_progress' } : p
-    )
-
-    localStorage.setItem('projects', JSON.stringify(updatedProjects))
-
-    setProject((prev) => ({ ...prev, status: 'in_progress' }))
+      const updated = await updateProposalStatus({ proposalId, status })
+      setProposals((previous) =>
+        previous.map((proposal) => (proposal._id === proposalId ? updated : proposal)),
+      )
+    } catch (err) {
+      setError(err?.message || 'Failed to update proposal status')
+    } finally {
+      setUpdatingId('')
+    }
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">
-          Project Proposals
-        </h1>
-
-        {project && (
-          <p className="text-gray-600 mt-1">
-            Reviewing proposals for{' '}
-            <span className="font-medium">{project.title}</span>
-          </p>
-        )}
+    <section className="mx-auto w-full max-w-6xl space-y-4 text-brand-text">
+      <div className="rounded-2xl border border-brand-border bg-brand-background p-5">
+        <h1 className="text-2xl font-semibold text-brand-text">Project Proposals</h1>
       </div>
 
-      {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {loading ? (
+        <div className="rounded-2xl border border-brand-border bg-brand-background p-5 text-sm text-brand-subtext">
+          Loading proposals...
+        </div>
+      ) : null}
+
+      {!loading && error ? (
+        <div className="rounded-2xl border border-brand-border bg-brand-messageReceived p-5 text-sm text-brand-text">
           {error}
         </div>
-      )}
+      ) : null}
 
-      {loading ? (
-        <Loader />
-      ) : proposals.length === 0 ? (
-        <p>No proposals yet</p>
-      ) : (
-        <ProposalList
-          proposals={proposals}
-          getProjectById={getProjectById}
-          getFreelancerById={getFreelancerById}
-          context="client"
-          onShortlist={handleShortlist}
-          onAccept={handleAccept}
-          onReject={handleReject}
-        />
-      )}
-    </div>
+      {!loading && !error && proposals.length === 0 ? (
+        <div className="rounded-2xl border border-brand-border bg-brand-background p-5 text-sm text-brand-subtext">
+          No proposals yet for this job.
+        </div>
+      ) : null}
+
+      {!loading && !error && proposals.length > 0 ? (
+        <div className="space-y-3">
+          {proposals.map((proposal) => (
+            <article
+              key={proposal._id}
+              className="rounded-2xl border border-brand-border bg-brand-background p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-base font-semibold text-brand-text">
+                    {proposal.freelancer?.name || 'Freelancer'}
+                  </p>
+                  <p className="text-sm text-brand-subtext">{proposal.freelancer?.email || 'No email'}</p>
+                </div>
+
+                <span className="rounded-xl border border-brand-border bg-brand-messageReceived px-3 py-1 text-xs font-medium capitalize text-brand-text">
+                  {proposal.status}
+                </span>
+              </div>
+
+              <p className="mt-3 whitespace-pre-wrap text-sm text-brand-text">{proposal.text}</p>
+
+              {proposal.status === 'pending' ? (
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleStatusUpdate(proposal._id, 'accepted')}
+                    disabled={updatingId === proposal._id}
+                    className="rounded-xl bg-brand-primary px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStatusUpdate(proposal._id, 'rejected')}
+                    disabled={updatingId === proposal._id}
+                    className="rounded-xl border border-brand-border bg-brand-background px-4 py-2 text-sm font-medium text-brand-text disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Reject
+                  </button>
+                </div>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : null}
+    </section>
   )
 }
 

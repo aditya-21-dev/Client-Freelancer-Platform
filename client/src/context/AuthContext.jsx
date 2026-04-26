@@ -81,6 +81,12 @@ export const AuthProvider = ({ children }) => {
     setUser(payloadUser)
   }, [])
 
+  const updateUser = useCallback((nextUser) => {
+    if (!nextUser) return
+    localStorage.setItem('user', JSON.stringify(nextUser))
+    setUser(nextUser)
+  }, [])
+
   useEffect(() => {
     const handleUnauthorized = () => {
       logout()
@@ -96,10 +102,11 @@ export const AuthProvider = ({ children }) => {
       token,
       isInitializing,
       login,
+      updateUser,
       logout,
       isAuthenticated: Boolean(token),
     }),
-    [user, token, isInitializing, login, logout],
+    [user, token, isInitializing, login, updateUser, logout],
   )
 
   return (

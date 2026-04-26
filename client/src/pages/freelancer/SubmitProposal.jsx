@@ -1,100 +1,72 @@
-import { useState, useContext } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { AuthContext } from '../../context/AuthContext'
+import { useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { createProposal } from '../../services/proposalService'
 
 const SubmitProposal = () => {
   const { projectId } = useParams()
   const navigate = useNavigate()
-  const { user } = useContext(AuthContext)
 
-  const [form, setForm] = useState({
-    title: '',
-    description: '',
-    bidAmount: '',
-    deliveryTime: '',
-  })
+  const [text, setText] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
-  }
+  const handleSubmit = async (event) => {
+    event.preventDefault()
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-
-    const newProposal = {
-      id: Date.now().toString(),
-      projectId,                    // 🔥 VERY IMPORTANT
-      freelancerId: user._id,       // 🔥 link to freelancer
-      title: form.title,
-      description: form.description,
-      bidAmount: form.bidAmount,
-      deliveryTime: form.deliveryTime,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
+    const normalizedText = text.trim()
+    if (!normalizedText) {
+      setError('Proposal text is required')
+      return
     }
 
-    const existing =
-      JSON.parse(localStorage.getItem('proposals')) || []
+    try {
+      setIsSubmitting(true)
+      setError('')
 
-    const updated = [newProposal, ...existing]
-
-    localStorage.setItem('proposals', JSON.stringify(updated))
-
-    // redirect back to freelancer dashboard
-    navigate('/freelancer/dashboard')
+      await createProposal({ jobId: projectId, text: normalizedText })
+      navigate('/freelancer/my-proposals')
+    } catch (err) {
+      setError(err?.message || 'Failed to submit proposal')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
-    <div className="max-w-xl mx-auto">
-      <h1 className="text-xl font-bold mb-4">Submit Proposal</h1>
+    <section className="mx-auto w-full max-w-2xl rounded-2xl border border-brand-border bg-brand-background p-6 text-brand-text">
+      <h1 className="text-xl font-semibold text-brand-text">Send Proposal</h1>
+      <p className="mt-1 text-sm text-brand-subtext">Share your approach for this job.</p>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+        <div>
+          <label htmlFor="proposal-text" className="mb-2 block text-sm font-medium text-brand-text">
+            Proposal
+          </label>
+          <textarea
+            id="proposal-text"
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            rows={8}
+            className="w-full rounded-2xl border border-brand-border bg-brand-background p-3 text-sm text-brand-text"
+            placeholder="Write your proposal"
+          />
+        </div>
 
-        <input
-          type="text"
-          name="title"
-          placeholder="Proposal Title"
-          value={form.title}
-          onChange={handleChange}
-          required
-          className="w-full p-2 border rounded"
-        />
+        {error ? (
+          <p className="rounded-xl border border-brand-border bg-brand-messageReceived px-3 py-2 text-sm text-brand-text">
+            {error}
+          </p>
+        ) : null}
 
-        <textarea
-          name="description"
-          placeholder="Describe your proposal"
-          value={form.description}
-          onChange={handleChange}
-          required
-          className="w-full p-2 border rounded"
-        />
-
-        <input
-          type="number"
-          name="bidAmount"
-          placeholder="Bid Amount"
-          value={form.bidAmount}
-          onChange={handleChange}
-          required
-          className="w-full p-2 border rounded"
-        />
-
-        <input
-          type="number"
-          name="deliveryTime"
-          placeholder="Delivery Time (days)"
-          value={form.deliveryTime}
-          onChange={handleChange}
-          required
-          className="w-full p-2 border rounded"
-        />
-
-        <button className="bg-blue-600 text-white px-4 py-2 rounded w-full">
-          Submit Proposal
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="rounded-xl bg-brand-primary px-5 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSubmitting ? 'Sending...' : 'Send'}
         </button>
-
       </form>
-    </div>
+    </section>
   )
 }
 

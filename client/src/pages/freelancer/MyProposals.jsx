@@ -1,77 +1,93 @@
-import { useEffect, useState, useContext } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { AuthContext } from '../../context/AuthContext'
+import { useEffect, useState } from 'react'
+import { fetchFreelancerProposals } from '../../services/proposalService'
 
 const MyProposals = () => {
-  const { user } = useContext(AuthContext)
-  const navigate = useNavigate()
-
   const [proposals, setProposals] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!user?._id) return
+    let active = true
 
-    const all =
-      JSON.parse(localStorage.getItem('proposals')) || []
+    const loadProposals = async () => {
+      try {
+        setLoading(true)
+        setError('')
 
-    const my = all.filter(
-      (p) => p.freelancerId === user._id
-    )
+        const data = await fetchFreelancerProposals()
+        if (!active) return
 
-    setProposals(my)
-  }, [user])
-
-  const getStatusStyle = (status) => {
-    switch (status) {
-      case 'accepted':
-        return 'text-green-600'
-      case 'rejected':
-        return 'text-red-600'
-      default:
-        return 'text-orange-600'
+        setProposals(Array.isArray(data) ? data : [])
+      } catch (err) {
+        if (!active) return
+        setError(err?.message || 'Failed to load proposals')
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
     }
-  }
+
+    loadProposals()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <section className="mx-auto w-full max-w-6xl space-y-4 text-brand-text">
+      <div className="rounded-2xl border border-brand-border bg-brand-background p-5">
+        <h1 className="text-2xl font-semibold">My Proposals</h1>
+        <p className="mt-1 text-sm text-brand-subtext">Track all proposals you have submitted.</p>
+      </div>
 
-      <h1 className="text-2xl font-semibold mb-6">
-        My Proposals
-      </h1>
+      {loading ? (
+        <div className="rounded-2xl border border-brand-border bg-brand-background p-5 text-sm text-brand-subtext">
+          Loading proposals...
+        </div>
+      ) : null}
 
-      {proposals.length === 0 ? (
-        <p>No proposals submitted</p>
-      ) : (
-        proposals.map((p) => (
-          <div
-            key={p.id}
-            onClick={() => navigate(`/proposals/${p.id}`)}
-            className="p-4 border rounded mb-3 cursor-pointer hover:bg-gray-50"
-          >
+      {!loading && error ? (
+        <div className="rounded-2xl border border-brand-border bg-brand-messageReceived p-5 text-sm text-brand-text">
+          {error}
+        </div>
+      ) : null}
 
-            <h3 className="font-semibold">{p.title}</h3>
+      {!loading && !error && proposals.length === 0 ? (
+        <div className="rounded-2xl border border-brand-border bg-brand-background p-5 text-sm text-brand-subtext">
+          No proposals submitted yet.
+        </div>
+      ) : null}
 
-            <p className="text-sm text-gray-600">
-              {p.description}
-            </p>
+      {!loading && !error && proposals.length > 0 ? (
+        <div className="space-y-3">
+          {proposals.map((proposal) => (
+            <article
+              key={proposal._id}
+              className="rounded-2xl border border-brand-border bg-brand-background p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-brand-text">
+                    {proposal.job?.title || 'Untitled Job'}
+                  </h2>
+                  <p className="text-sm text-brand-subtext">
+                    Client: {proposal.client?.name || 'Unknown'}
+                  </p>
+                </div>
 
-            <div className="mt-2 flex justify-between items-center">
-              <span
-                className={`text-sm font-medium ${getStatusStyle(p.status)}`}
-              >
-                {p.status.toUpperCase()}
-              </span>
+                <span className="rounded-xl border border-brand-border bg-brand-messageReceived px-3 py-1 text-xs font-medium capitalize text-brand-text">
+                  {proposal.status}
+                </span>
+              </div>
 
-              <span className="text-xs text-gray-500">
-                ₹ {p.bidAmount}
-              </span>
-            </div>
-
-          </div>
-        ))
-      )}
-
-    </div>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-brand-text">{proposal.text}</p>
+            </article>
+          ))}
+        </div>
+      ) : null}
+    </section>
   )
 }
 

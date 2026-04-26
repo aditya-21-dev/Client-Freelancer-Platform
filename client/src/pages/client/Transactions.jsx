@@ -1,123 +1,95 @@
 import { useEffect, useState } from 'react'
+import { fetchClientTransactions } from '../../services/paymentService'
 
 const Transactions = () => {
   const [transactions, setTransactions] = useState([])
-  const [activeTab, setActiveTab] = useState('pending')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  // 🔥 Load transactions
   useEffect(() => {
-    const data =
-      JSON.parse(localStorage.getItem('transactions')) || []
-    setTransactions(data)
+    let active = true
+
+    const loadTransactions = async () => {
+      try {
+        setLoading(true)
+        setError('')
+
+        const data = await fetchClientTransactions()
+        if (!active) return
+
+        setTransactions(Array.isArray(data) ? data : [])
+      } catch (err) {
+        if (!active) return
+        setError(err?.message || 'Failed to load transactions')
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadTransactions()
+
+    return () => {
+      active = false
+    }
   }, [])
-
-  // 🔥 Live countdown updater
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTransactions((prev) => [...prev])
-    }, 60000)
-
-    return () => clearInterval(interval)
-  }, [])
-
-  const getRemainingTime = (deadline) => {
-    const diff = new Date(deadline) - new Date()
-
-    if (diff <= 0) return 'Expired'
-
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-    const hours = Math.floor(
-      (diff / (1000 * 60 * 60)) % 24
-    )
-
-    return `${days}d ${hours}h left`
-  }
-
-  const markAsCompleted = (id) => {
-    const all =
-      JSON.parse(localStorage.getItem('transactions')) || []
-
-    const updated = all.map((t) =>
-      t.id === id ? { ...t, status: 'completed' } : t
-    )
-
-    localStorage.setItem('transactions', JSON.stringify(updated))
-    setTransactions(updated)
-  }
-
-  const pending = transactions.filter((t) => t.status === 'pending')
-  const completed = transactions.filter((t) => t.status === 'completed')
-
-  const dataToShow =
-    activeTab === 'pending' ? pending : completed
 
   return (
-    <div className="max-w-5xl mx-auto">
-
-      <h1 className="text-2xl font-semibold mb-6">
-        Transactions
-      </h1>
-
-      {/* 🔥 Tabs */}
-      <div className="flex border-b mb-6">
-
-        <button
-          onClick={() => setActiveTab('pending')}
-          className={`px-4 py-2 font-medium ${
-            activeTab === 'pending'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-500'
-          }`}
-        >
-          Pending Transactions
-        </button>
-
-        <button
-          onClick={() => setActiveTab('completed')}
-          className={`px-4 py-2 font-medium ${
-            activeTab === 'completed'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-500'
-          }`}
-        >
-          Completed Transactions
-        </button>
-
+    <section className="mx-auto w-full max-w-6xl space-y-4 text-brand-text">
+      <div className="rounded-2xl border border-brand-border bg-brand-background p-5">
+        <h1 className="text-2xl font-semibold">Transactions</h1>
+        <p className="mt-1 text-sm text-brand-subtext">Escrow records for accepted proposals.</p>
       </div>
 
-      {/* 🔥 Content */}
-      {dataToShow.length === 0 ? (
-        <p className="text-gray-500">No transactions</p>
-      ) : (
-        dataToShow.map((t) => (
-          <div key={t.id} className="p-4 border rounded mb-3">
+      {loading ? (
+        <div className="rounded-2xl border border-brand-border bg-brand-background p-5 text-sm text-brand-subtext">
+          Loading transactions...
+        </div>
+      ) : null}
 
-            <p><strong>Project ID:</strong> {t.projectId}</p>
+      {!loading && error ? (
+        <div className="rounded-2xl border border-brand-border bg-brand-messageReceived p-5 text-sm text-brand-text">
+          {error}
+        </div>
+      ) : null}
 
-            {activeTab === 'pending' ? (
-              <>
-                <p className="text-orange-600 font-medium">
-                  {getRemainingTime(t.deadline)}
-                </p>
+      {!loading && !error && transactions.length === 0 ? (
+        <div className="rounded-2xl border border-brand-border bg-brand-background p-5 text-sm text-brand-subtext">
+          No transactions yet.
+        </div>
+      ) : null}
 
-                <button
-                  onClick={() => markAsCompleted(t.id)}
-                  className="mt-2 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
-                >
-                  Mark as Completed
-                </button>
-              </>
-            ) : (
-              <p className="text-green-600 font-medium">
-                Completed
+      {!loading && !error && transactions.length > 0 ? (
+        <div className="space-y-3">
+          {transactions.map((transaction) => (
+            <article
+              key={transaction._id}
+              className="rounded-2xl border border-brand-border bg-brand-background p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-brand-text">
+                    {transaction.job?.title || 'Job'}
+                  </h2>
+                  <p className="text-sm text-brand-subtext">
+                    Freelancer: {transaction.freelancer?.name || 'Unknown'}
+                  </p>
+                </div>
+
+                <span className="rounded-xl border border-brand-border bg-brand-messageSent px-3 py-1 text-xs font-medium capitalize text-brand-text">
+                  {transaction.status}
+                </span>
+              </div>
+
+              <p className="mt-3 text-sm text-brand-subtext">
+                Amount: INR {Number(transaction.amount || 0).toLocaleString()}
               </p>
-            )}
-
-          </div>
-        ))
-      )}
-
-    </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
+    </section>
   )
 }
 
