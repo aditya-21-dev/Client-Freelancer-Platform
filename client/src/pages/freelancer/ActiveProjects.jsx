@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchFreelancerJobs } from '../../services/jobService'
 import { uploadSubmission } from '../../api/submissionApi'
+import { fetchFreelancerJobs } from '../../services/jobService'
+
+const statusClassMap = {
+  pending: 'text-red-500',
+  submitted: 'text-green-500',
+  revision: 'text-yellow-500',
+  approved: 'text-green-600 font-bold',
+}
 
 const ActiveProjects = () => {
   const [jobs, setJobs] = useState([])
@@ -9,8 +16,8 @@ const ActiveProjects = () => {
   const [selectedFiles, setSelectedFiles] = useState({})
   const [replyMap, setReplyMap] = useState({})
   const [busyJobId, setBusyJobId] = useState('')
+  const [submissionFeedback, setSubmissionFeedback] = useState({})
 
-  // 🔹 Load jobs
   useEffect(() => {
     let active = true
 
@@ -18,10 +25,8 @@ const ActiveProjects = () => {
       try {
         setLoading(true)
         setError('')
-
         const data = await fetchFreelancerJobs()
         if (!active) return
-
         setJobs(Array.isArray(data) ? data : [])
       } catch (err) {
         if (!active) return
@@ -33,25 +38,37 @@ const ActiveProjects = () => {
     }
 
     loadJobs()
-
     return () => {
       active = false
     }
   }, [])
 
-  // 🔹 Filter active jobs
-  const activeJobs = useMemo(
-    () => jobs.filter((job) => job?.submission?.status !== 'completed'),
-    [jobs]
-  )
+  const activeJobs = useMemo(() => jobs, [jobs])
 
-  // 🔹 Handle submission
+  const setCardFeedback = (jobId, type, message) => {
+    setSubmissionFeedback((prev) => ({
+      ...prev,
+      [jobId]: { type, message },
+    }))
+
+    setTimeout(() => {
+      setSubmissionFeedback((prev) => {
+        if (!prev[jobId] || prev[jobId].message !== message) {
+          return prev
+        }
+        const next = { ...prev }
+        delete next[jobId]
+        return next
+      })
+    }, 3500)
+  }
+
   const handleSubmit = async (jobId, { isRevision = false } = {}) => {
     const file = selectedFiles[jobId]
     const replyText = replyMap[jobId]?.trim() || ''
 
     if (!file) {
-      alert("Please select a file")
+      setCardFeedback(jobId, 'error', 'Submission failed')
       return
     }
 
@@ -60,32 +77,28 @@ const ActiveProjects = () => {
       setError('')
 
       const formData = new FormData()
-      formData.append("file", file)
-      formData.append("jobId", jobId)
-      formData.append("message", isRevision ? replyText : "")
+      formData.append('file', file)
+      formData.append('jobId', jobId)
+      formData.append('message', isRevision ? replyText : '')
 
-      const token = localStorage.getItem("token")
-
+      const token = localStorage.getItem('token')
       if (!token) {
-        setError("User not authenticated")
+        setError('User not authenticated')
+        setCardFeedback(jobId, 'error', 'Submission failed')
         return
       }
 
       await uploadSubmission(formData, token)
+      setCardFeedback(jobId, 'success', 'Project submitted successfully')
 
-      console.log('[ActiveProjects] submission success')
-
-      // 🔥 Refresh jobs after submission
       const refreshedJobs = await fetchFreelancerJobs()
       setJobs(Array.isArray(refreshedJobs) ? refreshedJobs : [])
-
-      // reset inputs
       setSelectedFiles((prev) => ({ ...prev, [jobId]: null }))
       setReplyMap((prev) => ({ ...prev, [jobId]: '' }))
-
     } catch (err) {
       console.error('[ActiveProjects.handleSubmit] error', err)
-      setError(err?.response?.data?.message || 'Failed to submit project')
+      setError(err?.message || 'Failed to submit project')
+      setCardFeedback(jobId, 'error', 'Submission failed')
     } finally {
       setBusyJobId('')
     }
@@ -93,63 +106,47 @@ const ActiveProjects = () => {
 
   return (
     <section className="mx-auto w-full max-w-6xl space-y-4 text-brand-text">
-
-      {/* Header */}
       <div className="rounded-2xl border border-brand-border bg-brand-background p-5">
         <h1 className="text-2xl font-semibold">Active Projects</h1>
-        <p className="text-sm text-brand-subtext">
-          Submit your completed work to clients
-        </p>
+        <p className="text-sm text-brand-subtext">Submit your completed work to clients</p>
       </div>
 
-      {/* Loading */}
       {loading && <div className="p-4">Loading projects...</div>}
-
-      {/* Error */}
-      {!loading && error && (
-        <div className="p-4 text-red-500">{error}</div>
-      )}
-
-      {/* Empty */}
+      {!loading && error && <div className="p-4 text-red-500">{error}</div>}
       {!loading && !error && activeJobs.length === 0 && (
         <div className="p-4 text-brand-subtext">No active projects</div>
       )}
 
-      {/* Jobs List */}
       {!loading && !error && activeJobs.length > 0 && (
         <div className="space-y-4">
           {activeJobs.map((job) => {
-            const submissionStatus = job?.submission?.status || 'pending'
+            const submissionStatus = (job?.submissionStatus || 'pending').toLowerCase()
+            const statusClassName = statusClassMap[submissionStatus] || statusClassMap.pending
             const isBusy = busyJobId === job._id
+            const feedback = submissionFeedback[job._id]
 
             return (
               <div
                 key={job._id}
-                className="border border-brand-border rounded-xl p-4 bg-brand-background"
+                className="rounded-xl border border-brand-border bg-brand-background p-4"
               >
-                <h2 className="font-semibold text-lg">{job.title}</h2>
-
-                <p className="text-sm text-brand-subtext">
-                  Budget: INR {job.budget}
-                </p>
-
+                <h2 className="text-lg font-semibold">{job.title}</h2>
+                <p className="text-sm text-brand-subtext">Budget: INR {job.budget}</p>
                 <p className="text-sm">
-                  Status: <strong>{submissionStatus}</strong>
+                  Status: <span className={statusClassName}>{submissionStatus}</span>
                 </p>
 
-                {/* File input */}
                 <input
                   type="file"
-                  onChange={(e) =>
+                  onChange={(event) =>
                     setSelectedFiles((prev) => ({
                       ...prev,
-                      [job._id]: e.target.files[0],
+                      [job._id]: event.target.files?.[0] || null,
                     }))
                   }
                   className="mt-3"
                 />
 
-                {/* Submit button */}
                 <button
                   disabled={isBusy}
                   onClick={() =>
@@ -157,14 +154,20 @@ const ActiveProjects = () => {
                       isRevision: submissionStatus === 'revision',
                     })
                   }
-                  className="mt-2 px-4 py-2 bg-brand-primary text-white rounded"
+                  className="mt-2 rounded bg-brand-primary px-4 py-2 text-white"
                 >
-                  {isBusy
-                    ? "Submitting..."
-                    : submissionStatus === 'revision'
-                    ? "Resubmit"
-                    : "Submit Project"}
+                  {isBusy ? 'Submitting...' : submissionStatus === 'revision' ? 'Resubmit' : 'Submit Project'}
                 </button>
+
+                {feedback ? (
+                  <p
+                    className={`mt-2 text-sm ${
+                      feedback.type === 'success' ? 'text-green-500' : 'text-red-500'
+                    }`}
+                  >
+                    {feedback.message}
+                  </p>
+                ) : null}
               </div>
             )
           })}

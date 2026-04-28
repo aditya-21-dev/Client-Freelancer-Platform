@@ -1,10 +1,14 @@
 import mongoose from 'mongoose'
+import { addEarnings } from './earningsController.js'
 import Job from '../models/Job.js'
+import Message from '../models/Message.js'
 import Payment from '../models/Payment.js'
 import Proposal from '../models/Proposal.js'
 import Submission from '../models/Submission.js'
 
 const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value)
+const getConversationId = (firstUserId, secondUserId) =>
+  [String(firstUserId), String(secondUserId)].sort().join('*')
 
 const buildFileUrl = (req, filename) => `${req.protocol}://${req.get('host')}/uploads/${filename}`
 
@@ -195,7 +199,9 @@ export const approveSubmission = async (req, res) => {
       return res.status(403).json({ message: 'You are not allowed to approve this submission' })
     }
 
-    if (submission.status !== 'approved') {
+    const wasAlreadyApproved = submission.status === 'approved'
+
+    if (!wasAlreadyApproved) {
       submission.status = 'approved'
       submission.revisionMessage = ''
       await submission.save()
@@ -211,6 +217,8 @@ export const approveSubmission = async (req, res) => {
       return res.status(400).json({ message: 'Accepted proposal not found for this submission' })
     }
 
+    const paymentAmount = Number(job.budget || 0)
+
     const payment = await Payment.findOneAndUpdate(
       { proposal: acceptedProposal._id },
       {
@@ -218,7 +226,7 @@ export const approveSubmission = async (req, res) => {
         job: submission.jobId,
         client: job.client,
         freelancer: submission.freelancerId,
-        amount: Number(job.budget || 0),
+        amount: paymentAmount,
         status: 'released',
       },
       {
@@ -227,6 +235,10 @@ export const approveSubmission = async (req, res) => {
         setDefaultsOnInsert: true,
       },
     )
+
+    if (!wasAlreadyApproved && paymentAmount > 0) {
+      await addEarnings(submission.freelancerId, paymentAmount)
+    }
 
     return res.status(200).json({
       message: 'Submission approved successfully',
@@ -283,6 +295,15 @@ export const requestRevision = async (req, res) => {
     submission.status = 'revision'
     submission.revisionMessage = normalizedMessage
     await submission.save()
+
+    await Message.create({
+      sender: clientId,
+      receiver: submission.freelancerId,
+      conversationId: getConversationId(clientId, submission.freelancerId),
+      jobId: job._id,
+      text: normalizedMessage,
+      type: 'revision',
+    })
 
     return res.status(200).json({
       message: 'Revision requested successfully',

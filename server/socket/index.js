@@ -36,7 +36,7 @@ export const initSocket = (server) => {
 
     socket.on("sendMessage", async (payload = {}) => {
       try {
-        const { senderId, receiverId, conversationId, text } = payload;
+        const { senderId, receiverId, conversationId, text, jobId, type } = payload;
         const normalizedConversationId =
           typeof conversationId === "string" ? conversationId.trim() : "";
         const normalizedText = typeof text === "string" ? text.trim() : "";
@@ -58,6 +58,8 @@ export const initSocket = (server) => {
           receiver: receiverId,
           conversationId: normalizedConversationId,
           text: normalizedText,
+          jobId: jobId || null,
+          type: type === "revision" ? "revision" : "normal",
         });
 
         io.to(normalizedConversationId).emit("receiveMessage", savedMessage);

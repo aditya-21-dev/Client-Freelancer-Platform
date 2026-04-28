@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 import Job from '../models/Job.js'
 import Proposal from '../models/Proposal.js'
+import Submission from '../models/Submission.js'
 
 const validateCreateJobPayload = ({ title, description, budget, deadline }) => {
   if (!title || typeof title !== 'string' || !title.trim()) {
@@ -141,7 +142,31 @@ export const getFreelancerJobs = async (req, res) => {
       .populate('client', 'name email')
       .sort({ createdAt: -1 })
 
-    return res.status(200).json(jobs)
+    const submissions = await Submission.find({
+      freelancerId,
+      jobId: { $in: acceptedJobIds },
+    })
+      .select('jobId status createdAt updatedAt')
+      .sort({ createdAt: -1 })
+
+    const latestSubmissionByJob = new Map()
+    for (const submission of submissions) {
+      const key = String(submission.jobId)
+      if (!latestSubmissionByJob.has(key)) {
+        latestSubmissionByJob.set(key, submission)
+      }
+    }
+
+    const response = jobs.map((job) => {
+      const latestSubmission = latestSubmissionByJob.get(String(job._id))
+      return {
+        ...job.toObject(),
+        submissionStatus: latestSubmission?.status || 'pending',
+        latestSubmissionId: latestSubmission?._id || null,
+      }
+    })
+
+    return res.status(200).json(response)
   } catch (error) {
     console.error('[job.getFreelancerJobs] error', error)
     return res.status(500).json({ message: 'Failed to fetch freelancer jobs' })

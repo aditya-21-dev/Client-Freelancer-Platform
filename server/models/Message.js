@@ -18,10 +18,22 @@ const messageSchema = new mongoose.Schema(
       index: true,
       trim: true,
     },
+    jobId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Job',
+      default: null,
+      index: true,
+    },
     text: {
       type: String,
       required: true,
       trim: true,
+    },
+    type: {
+      type: String,
+      enum: ['normal', 'revision'],
+      default: 'normal',
+      index: true,
     },
     createdAt: {
       type: Date,

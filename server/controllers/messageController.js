@@ -2,7 +2,7 @@ import Message from '../models/Message.js'
 
 export const sendMessage = async (req, res) => {
   try {
-    const { receiverId, conversationId, text } = req.body || {}
+    const { receiverId, conversationId, text, jobId, type } = req.body || {}
     const senderId = req.user?.id || req.user?._id
     const normalizedConversationId =
       typeof conversationId === 'string' ? conversationId.trim() : ''
@@ -17,6 +17,8 @@ export const sendMessage = async (req, res) => {
       receiver: receiverId,
       conversationId: normalizedConversationId,
       text: normalizedText,
+      jobId: jobId || null,
+      type: type === 'revision' ? 'revision' : 'normal',
     })
 
     return res.status(201).json(message)

@@ -53,7 +53,16 @@ const ClientProjects = () => {
       setBusyId(submissionId)
       setError('')
       await approveSubmission(submissionId)
-      await loadProjects()
+      setProjects((previous) =>
+        previous.map((project) =>
+          project._id === submissionId
+            ? {
+                ...project,
+                status: 'approved',
+              }
+            : project,
+        ),
+      )
     } catch (err) {
       console.error('[ClientProjects.handleApprove] error', err)
       setError(err?.message || 'Failed to approve project')

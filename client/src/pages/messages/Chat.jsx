@@ -210,9 +210,16 @@ const Chat = ({ conversationId, receiverId }) => {
                 >
                   <article
                     className={`max-w-[70%] rounded-2xl px-4 py-2 text-brand-text ${
-                      isMine ? 'bg-brand-messageSent text-right' : 'bg-brand-messageReceived text-left'
+                      isMine
+                        ? 'bg-brand-messageSent text-right'
+                        : message.type === 'revision'
+                          ? 'bg-yellow-50 text-left'
+                          : 'bg-brand-messageReceived text-left'
                     }`}
                   >
+                    {message.type === 'revision' ? (
+                      <p className="mb-1 text-xs font-bold text-yellow-500">🔁 Revision Requested</p>
+                    ) : null}
                     <p className="whitespace-pre-wrap break-words text-sm text-brand-text">
                       {message.text}
                     </p>
