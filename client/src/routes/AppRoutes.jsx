@@ -28,9 +28,20 @@ import ActiveProjects from '../pages/freelancer/ActiveProjects'
 import Earnings from '../pages/freelancer/Earnings'
 import FreelancerProfile from '../pages/freelancer/FreelancerProfile'
 import ClientProfile from '../pages/client/ClientProfile'
+import FreelancerSubmit from '../pages/FreelancerSubmit'
+import ClientJobSubmissions from '../pages/ClientJobSubmissions'
+import ClientProjects from '../pages/ClientProjects'
 
 const ProtectedRoute = ({ requiredRole }) => {
-  const { user } = useContext(AuthContext)
+  const { user, isInitializing } = useContext(AuthContext)
+
+  if (isInitializing) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center rounded-2xl border border-brand-border bg-brand-background text-sm text-brand-subtext">
+        Loading session...
+      </div>
+    )
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />
@@ -89,7 +100,9 @@ const AppRoutes = () => {
           <Route path="/client/my-jobs" element={<MyJobs />} />
           <Route path="/client/proposals/:projectId" element={<ProjectProposals />} />
           <Route path="/client/proposals" element={<AllProposals />} />
+          <Route path="/client/projects" element={<ClientProjects />} />
           <Route path="/client/transactions" element={<Transactions />} />
+          <Route path="/client/jobs/:jobId/submissions" element={<ClientJobSubmissions />} />
         </Route>
       </Route>
 
@@ -102,10 +115,11 @@ const AppRoutes = () => {
           <Route path="/freelancer/active-projects" element={<ActiveProjects />} />
           <Route path="/freelancer/earnings" element={<Earnings />} />
           <Route path="/freelancer/profile" element={<FreelancerProfile />} />
+          <Route path="/freelancer/jobs/:jobId/submit" element={<FreelancerSubmit />} />
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   )
 }

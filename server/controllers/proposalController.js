@@ -1,7 +1,6 @@
 import mongoose from 'mongoose'
 import Job from '../models/Job.js'
 import Proposal from '../models/Proposal.js'
-import Payment from '../models/Payment.js'
 
 const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value)
 
@@ -43,6 +42,7 @@ export const createProposal = async (req, res) => {
 
     return res.status(201).json(populated)
   } catch (error) {
+    console.error('[proposal.createProposal] error', error)
     if (error?.code === 11000) {
       return res.status(409).json({ message: 'You have already submitted a proposal for this job' })
     }
@@ -64,6 +64,7 @@ export const getClientProposals = async (req, res) => {
 
     return res.status(200).json(proposals)
   } catch (error) {
+    console.error('[proposal.getClientProposals] error', error)
     return res.status(500).json({ message: 'Failed to fetch proposals' })
   }
 }
@@ -82,6 +83,7 @@ export const getFreelancerProposals = async (req, res) => {
 
     return res.status(200).json(proposals)
   } catch (error) {
+    console.error('[proposal.getFreelancerProposals] error', error)
     return res.status(500).json({ message: 'Failed to fetch proposals' })
   }
 }
@@ -116,20 +118,16 @@ export const updateProposalStatus = async (req, res) => {
     await proposal.save()
 
     if (status === 'accepted') {
-      await Payment.findOneAndUpdate(
-        { proposal: proposal._id },
-        {
-          $setOnInsert: {
-            proposal: proposal._id,
-            job: proposal.job?._id || proposal.job,
-            client: proposal.client,
-            freelancer: proposal.freelancer,
-            amount: Number(proposal.job?.budget || 0),
-            status: 'escrowed',
-          },
-        },
-        { upsert: true, new: true },
-      )
+      const jobToUpdate = await Job.findOne({ _id: proposal.job?._id || proposal.job, client: clientId })
+      if (jobToUpdate) {
+        jobToUpdate.submission = {
+          file: '',
+          submittedAt: null,
+          status: 'pending',
+        }
+        jobToUpdate.submissionMessages = []
+        await jobToUpdate.save()
+      }
     }
 
     const populated = await Proposal.findById(proposal._id)
@@ -137,8 +135,9 @@ export const updateProposalStatus = async (req, res) => {
       .populate('freelancer', 'name email')
       .populate('client', 'name email')
 
-    return res.status(200).json(populated)
+    return res.status(200).json({ proposal: populated })
   } catch (error) {
+    console.error('[proposal.updateProposalStatus] error', error)
     return res.status(500).json({ message: 'Failed to update proposal status' })
   }
 }

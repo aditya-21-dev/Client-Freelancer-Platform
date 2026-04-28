@@ -30,6 +30,7 @@ import ProtectedRoute from './routes/ProtectedRoute'
 import PublicRoute from './routes/PublicRoute'
 import { AuthContext } from './context/AuthContext'
 import TestChat from "./TestChat";
+import ClientProjects from "./pages/ClientProjects";
 
 const DashboardLayout = () => {
   return (
@@ -120,6 +121,7 @@ function App() {
         <Route path="post-job" element={<PostJob />} />
         <Route path="my-jobs" element={<MyJobs />} />
         <Route path="proposals/:projectId" element={<ProjectProposals />} />
+        <Route path="/client/projects" element={<ClientProjects />} />
         <Route path="proposals" element={<AllProposals />} />
         <Route path="transactions" element={<Transactions />} />
       </Route>

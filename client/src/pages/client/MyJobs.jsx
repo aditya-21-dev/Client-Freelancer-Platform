@@ -1,187 +1,235 @@
-import { useContext, useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { AuthContext } from '../../context/AuthContext'
-import Loader from '../../components/Loader'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import Loader from '../../components/Loader'
+import {
+  acceptJobProject,
+  fetchClientJobs,
+  requestJobRevision,
+} from '../../services/jobService'
 
-const statusBadgeClasses = {
-  open: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  in_progress: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  completed: 'bg-gray-100 text-gray-700 ring-gray-500/10',
+const formatDate = (value) => {
+  if (!value) return 'Not specified'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return 'Not specified'
+  return parsed.toLocaleDateString()
 }
 
 const MyJobs = () => {
-  const { user } = useContext(AuthContext)
   const navigate = useNavigate()
-  const location = useLocation()
-  const [projects, setProjects] = useState([])
+
+  const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [success, setSuccess] = useState(
-    location.state?.created ? 'Project created successfully.' : ''
-  )
+  const [error, setError] = useState('')
+  const [busyJobId, setBusyJobId] = useState('')
+  const [revisionDrafts, setRevisionDrafts] = useState({})
 
   useEffect(() => {
-    // wait until user is available
-    if (!user) return
-  
-    const allProjects = JSON.parse(localStorage.getItem('projects')) || []
-  
-    const myProjects = allProjects.filter(
-      (p) => p.client_id === user._id
-    )
-  
-    if (location.state?.project) {
-      const newProject = location.state.project
-    
-      const filtered = myProjects.filter(
-        (p) => p._id !== newProject._id
-      )
-    
-      setProjects([newProject, ...filtered])
-    } else {
-      setProjects(myProjects)
-    }
-  
-    setLoading(false) // âœ… ALWAYS runs after user is ready
-  }, [user])
+    let active = true
 
-  const handleDelete = (id) => {
-    if (!window.confirm('Are you sure?')) return
-  
-    const all = JSON.parse(localStorage.getItem('projects')) || []
-  
-    const updated = all.filter((p) => p._id !== id)
-  
-    localStorage.setItem('projects', JSON.stringify(updated))
-  
-    setProjects((prev) => prev.filter((p) => p._id !== id))
+    const loadJobs = async () => {
+      try {
+        setLoading(true)
+        setError('')
+
+        const data = await fetchClientJobs()
+        if (!active) return
+
+        setJobs(Array.isArray(data) ? data : [])
+      } catch (err) {
+        if (!active) return
+        console.error('[MyJobs.loadJobs] error', err)
+        setError(err?.message || 'Failed to fetch jobs')
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadJobs()
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const updateJobInState = (updatedJob) => {
+    setJobs((previous) =>
+      previous.map((job) => (job._id === updatedJob._id ? updatedJob : job)),
+    )
+  }
+
+  const handleAcceptProject = async (jobId) => {
+    try {
+      setBusyJobId(jobId)
+      setError('')
+
+      const updated = await acceptJobProject(jobId)
+      console.log('[MyJobs.handleAcceptProject] completed', { jobId })
+      updateJobInState(updated)
+    } catch (err) {
+      console.error('[MyJobs.handleAcceptProject] error', err)
+      setError(err?.message || 'Failed to accept project')
+    } finally {
+      setBusyJobId('')
+    }
+  }
+
+  const handleRequestRevision = async (jobId) => {
+    const text = revisionDrafts[jobId]?.trim()
+    if (!text) return
+
+    try {
+      setBusyJobId(jobId)
+      setError('')
+
+      const updated = await requestJobRevision({ jobId, text })
+      console.log('[MyJobs.handleRequestRevision] revision requested', { jobId })
+      updateJobInState(updated)
+      setRevisionDrafts((previous) => ({ ...previous, [jobId]: '' }))
+    } catch (err) {
+      console.error('[MyJobs.handleRequestRevision] error', err)
+      setError(err?.message || 'Failed to request revision')
+    } finally {
+      setBusyJobId('')
+    }
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">My Projects</h1>
-          <p className="text-gray-600 mt-1">
-            Track all the projects you've posted and manage proposals.
-          </p>
-        </div>
+    <section className="mx-auto w-full max-w-6xl space-y-4 text-brand-text">
+      <div className="rounded-2xl border border-brand-border bg-brand-background p-5">
+        <h1 className="text-2xl font-semibold text-brand-text">My Jobs</h1>
+        <p className="mt-1 text-sm text-brand-subtext">Track proposals and review submitted work.</p>
       </div>
 
-      {success && (
-        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {success}
-        </div>
-      )}
+      {loading ? <Loader /> : null}
 
-      {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {!loading && error ? (
+        <div className="rounded-2xl border border-brand-border bg-brand-messageReceived p-5 text-sm text-brand-text">
           {error}
         </div>
-      )}
+      ) : null}
 
-      {loading ? (
-        <Loader />
-      ) : projects.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-dashed border-gray-300 p-10 text-center">
-          <h2 className="text-lg font-medium text-gray-900 mb-1">No projects yet</h2>
-          <p className="text-gray-600 text-sm">
-            Start by posting your first project to hire top freelancers.
-          </p>
+      {!loading && !error && jobs.length === 0 ? (
+        <div className="rounded-2xl border border-brand-border bg-brand-background p-5 text-sm text-brand-subtext">
+          No jobs posted yet.
         </div>
-      ) : (
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Project
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Budget
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Proposals
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Actions
-                </th>
-              </tr>
-            </thead>
+      ) : null}
 
-            <tbody className="divide-y divide-gray-200 bg-white">
-              {projects.map((project) => (
-                <tr key={project._id}>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium text-gray-900">
-                        {project.title}
-                      </span>
-                      <span className="text-xs text-gray-500 line-clamp-1">
-                        {project.description}
-                      </span>
-                    </div>
-                  </td>
+      {!loading && !error && jobs.length > 0 ? (
+        <div className="space-y-3">
+          {jobs.map((job) => {
+            const submissionStatus = job?.submission?.status || 'pending'
+            const hasSubmission = Boolean(job?.submission?.file || submissionStatus !== 'pending')
+            const isCompleted = submissionStatus === 'completed'
+            const isBusy = busyJobId === job._id
 
-                  <td className="px-6 py-4 text-sm text-gray-700">
-                    {project.budget_type === 'hourly' ? 'Hourly' : 'Fixed'}{' '}
-                    <span className="font-semibold text-gray-900">
-                      ${project.budget_min} - ${project.budget_max}
-                    </span>
-                  </td>
+            return (
+              <article
+                key={job._id}
+                className="rounded-2xl border border-brand-border bg-brand-background p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-base font-semibold text-brand-text">{job.title}</h2>
+                    <p className="mt-1 line-clamp-2 text-sm text-brand-subtext">{job.description}</p>
+                  </div>
 
-                  <td className="px-6 py-4">
-                    {(() => {
-                      const status = project.status || 'open'
+                  <span className="rounded-xl border border-brand-border bg-brand-messageReceived px-3 py-1 text-xs font-medium text-brand-text">
+                    {job.proposalsCount || 0} Proposals
+                  </span>
+                </div>
 
-                      return (
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${
-                            statusBadgeClasses[status] || statusBadgeClasses.open
-                          }`}
-                        >
-                          {status === 'in_progress'
-                            ? 'In Progress'
-                            : status.charAt(0).toUpperCase() + status.slice(1)}
-                        </span>
-                      )
-                    })()}
-                  </td>
+                <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-brand-subtext">
+                  <span>Budget: INR {Number(job.budget || 0).toLocaleString()}</span>
+                  <span>Deadline: {formatDate(job.deadline)}</span>
+                </div>
 
-                  <td className="px-6 py-4 text-sm text-gray-700 text-center">
-                    {project.proposalsCount ?? 0}
-                  </td>
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/client/proposals/${job._id}`)}
+                    className="rounded-xl bg-brand-primary px-4 py-2 text-sm font-medium text-white"
+                  >
+                    View Proposals
+                  </button>
+                </div>
 
-                  <td className="px-6 py-4 text-right text-sm">
-                      <div className="inline-flex items-center gap-2">
-                        <button
-                          onClick={() => navigate(`/client/proposals/${project._id}`)}
-                          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
-                        >
-                          Proposals
-                        </button>
+                {hasSubmission ? (
+                  <div className="mt-4 rounded-xl border border-brand-border bg-brand-messageReceived p-3">
+                    <p className="text-sm text-brand-subtext">Submitted File</p>
+                    <p className="text-sm font-medium text-brand-text">
+                      {job?.submission?.file || 'No file uploaded yet'}
+                    </p>
+                    <p className="mt-1 text-sm text-brand-subtext capitalize">Status: {submissionStatus}</p>
 
-                        <button
-                          onClick={() => handleDelete(project._id)}
-                          className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700"
-                        >
-                          Delete
-                        </button>
-
+                    {job?.submissionMessages?.length ? (
+                      <div className="mt-3 space-y-2">
+                        {job.submissionMessages.map((message) => (
+                          <div
+                            key={message._id}
+                            className={`flex ${message.sender === 'client' ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div
+                              className={`max-w-[85%] rounded-2xl px-3 py-2 ${
+                                message.sender === 'client'
+                                  ? 'bg-brand-messageSent'
+                                  : 'bg-brand-background border border-brand-border'
+                              }`}
+                            >
+                              <p className="text-sm text-brand-text">{message.text}</p>
+                              <p className="mt-1 text-xs text-brand-subtext capitalize">
+                                {message.sender} • {formatDate(message.createdAt)}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+                    ) : null}
 
-          </table>
+                    {!isCompleted ? (
+                      <div className="mt-4 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleAcceptProject(job._id)}
+                            className="rounded-xl bg-brand-primary px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Accept Project
+                          </button>
+                        </div>
+
+                        <textarea
+                          rows={3}
+                          value={revisionDrafts[job._id] || ''}
+                          onChange={(event) =>
+                            setRevisionDrafts((previous) => ({
+                              ...previous,
+                              [job._id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Request changes from freelancer..."
+                          className="w-full rounded-xl border border-brand-border bg-brand-background px-3 py-2 text-sm text-brand-text"
+                        />
+                        <button
+                          type="button"
+                          disabled={!revisionDrafts[job._id]?.trim() || isBusy}
+                          onClick={() => handleRequestRevision(job._id)}
+                          className="rounded-xl border border-brand-border bg-brand-background px-4 py-2 text-sm font-medium text-brand-text disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Request Change
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </article>
+            )
+          })}
         </div>
-      )}
-    </div>
+      ) : null}
+    </section>
   )
 }
 

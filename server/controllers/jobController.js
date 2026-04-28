@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import Job from '../models/Job.js'
+import Proposal from '../models/Proposal.js'
 
 const validateCreateJobPayload = ({ title, description, budget, deadline }) => {
   if (!title || typeof title !== 'string' || !title.trim()) {
@@ -38,6 +39,12 @@ export const createJob = async (req, res) => {
       budget: Number(budget),
       deadline: new Date(deadline),
       client: req.user._id,
+      submission: {
+        file: '',
+        submittedAt: null,
+        status: 'pending',
+      },
+      submissionMessages: [],
     })
 
     return res.status(201).json(job)
@@ -75,5 +82,204 @@ export const getJobById = async (req, res) => {
     return res.status(200).json(job)
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch job' })
+  }
+}
+
+export const getClientJobsWithProposalCount = async (req, res) => {
+  try {
+    const clientId = req.user?._id
+    if (!clientId) {
+      return res.status(401).json({ message: 'Unauthorized' })
+    }
+
+    const jobs = await Job.find({ client: clientId })
+      .select('_id title description budget deadline createdAt')
+      .sort({ createdAt: -1 })
+
+    const jobIds = jobs.map((job) => job._id)
+
+    const proposalCounts = await Proposal.aggregate([
+      { $match: { job: { $in: jobIds } } },
+      { $group: { _id: '$job', count: { $sum: 1 } } },
+    ])
+
+    const countMap = new Map(
+      proposalCounts.map((item) => [String(item._id), item.count]),
+    )
+
+    const response = jobs.map((job) => ({
+      ...job.toObject(),
+      proposalsCount: countMap.get(String(job._id)) || 0,
+    }))
+
+    return res.status(200).json(response)
+  } catch (error) {
+    console.error('[job.getClientJobsWithProposalCount] error', error)
+    return res.status(500).json({ message: 'Failed to fetch client jobs' })
+  }
+}
+
+export const getFreelancerJobs = async (req, res) => {
+  try {
+    const freelancerId = req.user?._id
+    if (!freelancerId) {
+      return res.status(401).json({ message: 'Unauthorized' })
+    }
+
+    const acceptedProposals = await Proposal.find({
+      freelancer: freelancerId,
+      status: 'accepted',
+    }).select('job')
+
+    const acceptedJobIds = [...new Set(acceptedProposals.map((proposal) => String(proposal.job)))]
+
+    if (acceptedJobIds.length === 0) {
+      return res.status(200).json([])
+    }
+
+    const jobs = await Job.find({ _id: { $in: acceptedJobIds } })
+      .populate('client', 'name email')
+      .sort({ createdAt: -1 })
+
+    return res.status(200).json(jobs)
+  } catch (error) {
+    console.error('[job.getFreelancerJobs] error', error)
+    return res.status(500).json({ message: 'Failed to fetch freelancer jobs' })
+  }
+}
+
+export const submitJobProject = async (req, res) => {
+  try {
+    const { id } = req.params
+    const freelancerId = req.user?._id
+    const { file, status, message } = req.body || {}
+    const normalizedFile = typeof file === 'string' ? file.trim() : ''
+    const normalizedMessage = typeof message === 'string' ? message.trim() : ''
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid job id' })
+    }
+
+    const acceptedProposal = await Proposal.findOne({
+      job: id,
+      freelancer: freelancerId,
+      status: 'accepted',
+    }).select('_id')
+
+    if (!acceptedProposal) {
+      return res.status(403).json({ message: 'You are not assigned to this job' })
+    }
+
+    const job = await Job.findById(id).populate('client', 'name email')
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' })
+    }
+
+    if (normalizedFile) {
+      job.submission.file = normalizedFile
+    }
+
+    if (!job.submission?.file) {
+      return res.status(400).json({ message: 'File is required before submission' })
+    }
+
+    job.submission.submittedAt = new Date()
+    job.submission.status = status === 'submitted' ? 'submitted' : 'submitted'
+
+    if (normalizedMessage) {
+      job.submissionMessages = [
+        ...(job.submissionMessages || []),
+        {
+          sender: 'freelancer',
+          text: normalizedMessage,
+          createdAt: new Date(),
+        },
+      ]
+    }
+
+    await job.save()
+    console.log('[job.submitJobProject] submitted', {
+      jobId: job._id.toString(),
+      freelancerId: freelancerId?.toString?.() || String(freelancerId),
+      file: job.submission.file,
+      status: job.submission.status,
+    })
+
+    return res.status(200).json(job)
+  } catch (error) {
+    console.error('[job.submitJobProject] error', error)
+    return res.status(500).json({ message: 'Failed to submit project' })
+  }
+}
+
+export const acceptJobProject = async (req, res) => {
+  try {
+    const { id } = req.params
+    const clientId = req.user?._id
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid job id' })
+    }
+
+    const job = await Job.findOne({ _id: id, client: clientId }).populate('client', 'name email')
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' })
+    }
+
+    job.submission.status = 'completed'
+    await job.save()
+
+    console.log('[job.acceptJobProject] completed', {
+      jobId: job._id.toString(),
+      clientId: clientId?.toString?.() || String(clientId),
+    })
+
+    return res.status(200).json(job)
+  } catch (error) {
+    console.error('[job.acceptJobProject] error', error)
+    return res.status(500).json({ message: 'Failed to accept project' })
+  }
+}
+
+export const requestJobRevision = async (req, res) => {
+  try {
+    const { id } = req.params
+    const clientId = req.user?._id
+    const { text } = req.body || {}
+    const normalizedText = typeof text === 'string' ? text.trim() : ''
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid job id' })
+    }
+
+    if (!normalizedText) {
+      return res.status(400).json({ message: 'Revision message is required' })
+    }
+
+    const job = await Job.findOne({ _id: id, client: clientId }).populate('client', 'name email')
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' })
+    }
+
+    job.submission.status = 'revision'
+    job.submissionMessages = [
+      ...(job.submissionMessages || []),
+      {
+        sender: 'client',
+        text: normalizedText,
+        createdAt: new Date(),
+      },
+    ]
+
+    await job.save()
+    console.log('[job.requestJobRevision] revision requested', {
+      jobId: job._id.toString(),
+      clientId: clientId?.toString?.() || String(clientId),
+    })
+
+    return res.status(200).json(job)
+  } catch (error) {
+    console.error('[job.requestJobRevision] error', error)
+    return res.status(500).json({ message: 'Failed to request revision' })
   }
 }

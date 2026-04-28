@@ -1,23 +1,24 @@
-import { getJson, sendJson } from '../utils/api'
+import axiosClient from '../utils/axiosClient'
 
 export const createProposal = async ({ jobId, text }) => {
-  return sendJson('/api/proposals', {
-    method: 'POST',
-    body: { jobId, text },
-  })
+  const { data } = await axiosClient.post('/api/proposals', { jobId, text })
+  return data
 }
 
 export const fetchClientProposals = async () => {
-  return getJson('/api/proposals/client')
+  const { data } = await axiosClient.get('/api/proposals/client')
+  return data
 }
 
 export const fetchFreelancerProposals = async () => {
-  return getJson('/api/proposals/freelancer')
+  const { data } = await axiosClient.get('/api/proposals/freelancer')
+  return data
 }
 
-export const updateProposalStatus = async ({ proposalId, status }) => {
-  return sendJson(`/api/proposals/${proposalId}/status`, {
-    method: 'PUT',
-    body: { status },
+export const updateProposalStatus = async ({ proposalId, status, amount }) => {
+  const { data } = await axiosClient.put(`/api/proposals/${proposalId}/status`, {
+    status,
+    amount,
   })
+  return data
 }

@@ -1,5 +1,28 @@
 import mongoose from 'mongoose'
 
+const submissionMessageSchema = new mongoose.Schema(
+  {
+    sender: {
+      type: String,
+      enum: ['client', 'freelancer'],
+      required: true,
+    },
+    text: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  {
+    _id: true,
+    versionKey: false,
+  },
+)
+
 const jobSchema = new mongoose.Schema(
   {
     title: {
@@ -25,6 +48,25 @@ const jobSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+    },
+    submission: {
+      file: {
+        type: String,
+        default: '',
+      },
+      submittedAt: {
+        type: Date,
+        default: null,
+      },
+      status: {
+        type: String,
+        enum: ['pending', 'submitted', 'revision', 'completed'],
+        default: 'pending',
+      },
+    },
+    submissionMessages: {
+      type: [submissionMessageSchema],
+      default: [],
     },
   },
   {
